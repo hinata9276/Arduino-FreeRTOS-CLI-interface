@@ -9,6 +9,7 @@ CLI command via UART
 >blink freq <value> (non-zero to 500Hz blinking)
 >blink period <value> (1 to 60000 ms)
 >blink tHigh <value> tLow <value> (custom period for high and low. Arguments can be reversed)
+>blink HP (toggle to blink on high power LED)
 *if the LED stops blinking, it will be restarted upon receiving a valid command.
 
 e.g.:
@@ -39,7 +40,8 @@ be added in the future in a similar fashion, allowing multiple task controls via
 #endif
 
 #ifndef LED_BUILTIN
-#define LED_BUILTIN 4  // Specify the on which is your LED
+#define LED_BUILTIN 33  // Specify the on which is your LED
+#define LED_BUILTIN_HP 4  // Specify the on which is your LED
 #endif
 
 // Define two tasks for Blink & CLI processor.
@@ -55,15 +57,17 @@ void resume_blink();
 
 boolean newData = false;
 String commands;
-String args1,args2,args3,args4;
-String val1,val2,val3,val4;
+String args[4];
+String vals[4];
 const byte numChars = 32;
 char receivedChars[numChars],messageFromPC[numChars];
 unsigned short got_args, got_vals;
 
+//command buffer
 uint32_t blink_delay = 500;  // Delay between changing state on LED pin
 uint32_t blink_delay_high_cmd = 500;
 uint32_t blink_delay_low_cmd = 500;
+boolean high_power_LED_cmd = false;
 boolean blink_run = true;
 TaskHandle_t blink_task_handle;
 
@@ -106,9 +110,11 @@ void loop() {
 void TaskBlink(void *pvParameters) {  // This is a task.
   uint32_t blink_delay_high = *((uint32_t *)pvParameters);
   uint32_t blink_delay_low = *((uint32_t *)pvParameters);
+  boolean hpLED;
 
   // initialize digital LED_BUILTIN on pin 13 as an output.
   pinMode(LED_BUILTIN, OUTPUT);
+  pinMode(LED_BUILTIN_HP,OUTPUT);
 
   for (;;) {                          // A Task shall never return or exit.
     //check for run command
@@ -118,11 +124,15 @@ void TaskBlink(void *pvParameters) {  // This is a task.
     //check for new command
     blink_delay_high = blink_delay_high_cmd;
     blink_delay_low =  blink_delay_low_cmd;
-    digitalWrite(LED_BUILTIN, HIGH);  // turn the LED on (HIGH is the voltage level)
+    hpLED = high_power_LED_cmd;
+    //execute
+    if(!hpLED){digitalWrite(LED_BUILTIN, HIGH);}
+    else{digitalWrite(LED_BUILTIN_HP, HIGH);}
     // arduino-esp32 has FreeRTOS configured to have a tick-rate of 1000Hz and portTICK_PERIOD_MS
     // refers to how many milliseconds the period between each ticks is, ie. 1ms.
     vTaskDelay(blink_delay_high);
-    digitalWrite(LED_BUILTIN, LOW);  // turn the LED off by making the voltage LOW
+    if(!hpLED){digitalWrite(LED_BUILTIN, LOW);}
+    else{digitalWrite(LED_BUILTIN_HP, LOW);}
     vTaskDelay(blink_delay_low);
   }
 }
@@ -134,7 +144,7 @@ void TaskCLI(void *pvParameters){
       checkParsedData();
       newData=false;
     }
-    vTaskDelay(1);    //must insert a delay to release control to the RTOS scheduler to avoid watchdog timeout
+    vTaskDelay(100);    //must insert a delay to release control to the RTOS scheduler to avoid watchdog timeout
   }
 }
 void recvWithEndMarker() {
@@ -163,50 +173,25 @@ void parseData() {
     // split the data into its parts
   char * strtokIndx; // this is used by strtok() as an index
   static unsigned short read_count = 0;
+  int idx;
   strtokIndx = strtok(receivedChars," ,-");
   while(strtokIndx != NULL){
     strcpy(messageFromPC, strtokIndx);
     strtokIndx = strtok(NULL," ,");
-    switch(read_count){
-      case 0:
-        commands = String(messageFromPC);
-        got_args = read_count;
-        got_vals = read_count;
-        break;
-      case 1:
-        args1 = String(messageFromPC);
-        got_args = 1;
-        break;
-      case 2:
-        val1 = String(messageFromPC);
-        got_vals = 1;
-        break;
-      case 3:
-        args2 = String(messageFromPC);
-        got_args = 2;
-        break;
-      case 4:
-        val2 = String(messageFromPC); 
-        got_vals = 2;
-        break;
-      case 5:
-        args3 = String(messageFromPC);
-        got_args = 3;
-        break;
-      case 6:
-        val3 = String(messageFromPC); 
-        got_vals = 3;
-        break;
-      case 7:
-        args4 = String(messageFromPC);
-        got_args = 4;
-        break;
-      case 8:
-        val4 = String(messageFromPC); 
-        got_vals = 4;
-        break;
-      default:
-        break;
+    if(read_count==0){
+      commands = String(messageFromPC);
+      got_args = read_count;
+      got_vals = read_count;
+    }
+    else if(read_count % 2 == 1){ //odd number store args
+      idx = (read_count-1)/2;
+      args[idx] = String(messageFromPC);
+      got_args = idx + 1;
+    }
+    else{   //even number store vals
+      idx = read_count/2 - 1;
+      vals[idx] = String(messageFromPC);
+      got_vals = idx + 1;
     }
     read_count++;
   }
@@ -233,68 +218,63 @@ void checkParsedData(){
 }
 int command_blink(){
   float x1,x2;
+  unsigned short args_count;
+  int error = 0; //hypothesis
+  //special case when no arguments are provided
   if(got_args == 0){      //default blink at 1Hz
     blink_delay_high_cmd = 500;
-    blink_delay_low_cmd = 500;
-    resume_blink();
-    return 0;
+    blink_delay_low_cmd = blink_delay_high_cmd;
   }
-  else if(got_args == 1){
-    if(args1 == "stop"){
+  //when got arguments, proceed to check them
+  while(args_count != got_args){
+    if(args[args_count] == "stop"){
       blink_run = false;
-      return 0;
     }
-    else if(args1 == "freq"){
-      if(got_vals == 1){
-        x1 = val1.toFloat();
-        //check range
-        if(x1 == 0){return 4;}
-        else if(x1 > 500){return 5;}  //min 1ms delay
+    else if(args[args_count] == "freq"){
+      if(got_vals == got_args){
+        x1 = vals[args_count].toFloat();
+        if(x1 == 0){error = 4; break;}
+        else if(x1 > 500){error = 5; break;}  //min 1ms delay
         blink_delay_high_cmd = (int)(500.0/x1);
         blink_delay_low_cmd = blink_delay_high_cmd;
-        resume_blink();
-        return 0;
       }
-      else{return 2;}
+      else{error = 2;break;}
     }
-    else if(args1 == "period"){
-      if(got_vals == 1){
-        x1 = val1.toFloat();
+    else if(args[args_count] == "period"){
+      if(got_vals == got_args){
+        x1 = vals[args_count].toFloat();
         //check range
-        if(x1 < 1 || x1 > 60000){return 5;}
+        if(x1 < 1 || x1 > 60000){error = 5;break;}
         blink_delay_high_cmd = (int)(x1);
         blink_delay_low_cmd = blink_delay_high_cmd;
-        resume_blink();
-        return 0;
       }
-      else{return 2;}
+      else{error = 2;break;}
     }
-    else{return 3;}
-  }
-  else if(got_args == 2){
-    if(got_vals == 2){
-      x1 = val1.toFloat();x2 = val2.toFloat();
-      if(x1 < 1 || x1 > 60000){return 5;}
-      else if(x2 < 1 || x2 > 60000){return 5;}
-      else{
-        if(args1 == "tHigh" && args2 == "tLow"){
-          blink_delay_high_cmd = (int)(x1);
-          blink_delay_low_cmd = (int)(x2);
-          resume_blink();
-          return 0;
-        }
-        else if(args1 == "tLow" && args2 == "tHigh"){
-          blink_delay_high_cmd = (int)(x2);
-          blink_delay_low_cmd = (int)(x1);
-          resume_blink();
-          return 0;
-        }
-        else{return 3;}
+    else if(args[args_count] == "tHigh"){
+      if(got_vals == got_args){
+        x1 = vals[args_count].toFloat();
+        if(x1 < 1 || x1 > 60000){error = 5;break;}
+        blink_delay_high_cmd = (int)(x1);
       }
+      else{error = 2;break;}
     }
-    else{return 2;}
+    else if(args[args_count] == "tLow"){
+      if(got_vals == got_args){
+        x1 = vals[args_count].toFloat();
+        if(x1 < 1 || x1 > 60000){error = 5;break;}
+        blink_delay_low_cmd = (int)(x1);
+      }
+      else{error = 2;break;}
+    }
+    else if(args[args_count] == "HP"){
+      high_power_LED_cmd = !high_power_LED_cmd; //toggle HPLED
+    }
+    else{error = 3;break;}
+    args_count++;
   }
-  else{return 2;}
+  //after processing all command, execute if no error
+  if(error == 0){resume_blink();}
+  return error;
 }
 void resume_blink(){
   if(!blink_run){
