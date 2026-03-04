@@ -6,11 +6,11 @@ CLI command via serial monitor
 >
 >blink stop (stop blinking)
 >
->blink freq <value> (non-zero to 500Hz blinking)
+>blink freq (value) (non-zero to 500Hz blinking)
 >
->blink period <value> (1 to 60000 ms)
+>blink period (value) (1 to 60000 ms)
 >
->blink tHigh <value> tLow <value> (custom period for high and low. Arguments can be reversed)
+>blink tHigh (value) tLow <value> (custom period for high and low. Arguments can be reversed)
 >
 *if the LED stops blinking, it will be restarted upon receiving a valid command.
 
