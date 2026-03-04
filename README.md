@@ -12,12 +12,14 @@ CLI command via serial monitor
 >
 >blink tHigh (value) tLow <value> (custom period for high and low. Arguments can be reversed)
 >
+>blink HP (toggle to blink on high power LED)
+>
 *if the LED stops blinking, it will be restarted upon receiving a valid command.
 
 e.g.:
 >blink freq 10 (blink at 10Hz)
 >
->blink tHigh 1 tLow 1000 (spot light style blinking, arguments can be in reverse)
+>blink tHigh 1 tLow 1000 HP (spot light style blinking, arguments can be out of order)
 >
 >blink stop (stop blinking after the LED turns off, i.e. suspend task)
 >
