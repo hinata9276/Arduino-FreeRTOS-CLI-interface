@@ -9,12 +9,12 @@ CLI command via UART
 >blink freq <value> (non-zero to 500Hz blinking)
 >blink period <value> (1 to 60000 ms)
 >blink tHigh <value> tLow <value> (custom period for high and low. Arguments can be reversed)
->blink HP (toggle to blink on high power LED)
+>blink HP <value> (toggle to blink on high power LED)
 *if the LED stops blinking, it will be restarted upon receiving a valid command.
 
 e.g.:
 >blink freq 10 (blink at 10Hz)
->blink tHigh 1 tLow 1000 (spot light style blinking, arguments can be in reverse)
+>blink tHigh 1 tLow 1000 HP 1 (spot light style blinking, arguments can be out of order)
 >blink stop (stop blinking after the LED turns off, i.e. suspend task)
 >blink (start blinking again at default 1Hz frequency)
 
@@ -267,7 +267,10 @@ int command_blink(){
       else{error = 2;break;}
     }
     else if(args[args_count] == "HP"){
-      high_power_LED_cmd = !high_power_LED_cmd; //toggle HPLED
+      if(got_vals == got_args){
+        high_power_LED_cmd = vals[args_count].toInt() > 0; //toggle HPLED
+      }
+      else{error = 2;break;}
     }
     else{error = 3;break;}
     args_count++;
