@@ -19,7 +19,7 @@ CLI command via serial monitor
 e.g.:
 >blink freq 10 (blink at 10Hz)
 >
->blink tHigh 1 tLow 1000 HP (spot light style blinking, arguments can be out of order)
+>blink tHigh 1 tLow 1000 HP 1 (spot light style blinking, arguments can be out of order)
 >
 >blink stop (stop blinking after the LED turns off, i.e. suspend task)
 >
