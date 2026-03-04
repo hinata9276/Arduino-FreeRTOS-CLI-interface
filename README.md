@@ -12,7 +12,7 @@ CLI command via serial monitor
 >
 >blink tHigh (value) tLow <value> (custom period for high and low. Arguments can be reversed)
 >
->blink HP (toggle to blink on high power LED)
+>blink HP (value) (blink on high power LED, 0 = off, 1 = on)
 >
 *if the LED stops blinking, it will be restarted upon receiving a valid command.
 
