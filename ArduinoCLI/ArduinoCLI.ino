@@ -220,6 +220,7 @@ int command_blink(){
   float x1,x2;
   unsigned short args_count;
   int error = 0; //hypothesis
+  boolean skipCheck = 0; //hypothesis
   //special case when no arguments are provided
   if(got_args == 0){      //default blink at 1Hz
     blink_delay_high_cmd = 500;
@@ -229,6 +230,7 @@ int command_blink(){
   while(args_count != got_args){
     if(args[args_count] == "stop"){
       blink_run = false;
+      skipCheck = 1;
     }
     else if(args[args_count] == "freq"){
       if(got_vals == got_args){
@@ -276,12 +278,13 @@ int command_blink(){
     args_count++;
   }
   //after processing all command, execute if no error
-  if(error == 0){resume_blink();}
-  return error;
-}
-void resume_blink(){
-  if(!blink_run){
-    blink_run = true;
-    vTaskResume(blink_task_handle);
+  if(error == 0 && !skipCheck){
+    //the blinking task should be suspended from the task itself
+    //and be resumed by calling from outside the task
+    if(!blink_run){
+      blink_run = true;
+      vTaskResume(blink_task_handle);
+    }
   }
+  return error;
 }
