@@ -1,6 +1,6 @@
 # Arduino-FreeRTOS-CLI-interface
 This code demonstrate controlling ESP32 LED blinking via CLI (command line interface) like control. Multiple tasks could be controlled via UART CLI style command
-*Note: It runs on FreeRTOS, not recommended to run on 8-bit Arduino devices. 
+*Note: It runs on FreeRTOS, not recommended to run on 8-bit Arduino devices. 32-bit ESP32 or STM32 is recommended.
 
 CLI command via serial monitor 
 >blink (no parameters given, default blinking at 1Hz)
